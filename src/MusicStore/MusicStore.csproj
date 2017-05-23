@@ -26,7 +26,7 @@
     <AspNetVersion>2.0.0-preview1-final</AspNetVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(RuntimeFrameworkVersion)' == '' ">
-    <RuntimeFrameworkVersion>2.0.0-*</RuntimeFrameworkVersion>
+    <RuntimeFrameworkVersion>2.0.0-preview2-25319-02</RuntimeFrameworkVersion>
   </PropertyGroup>
   
   <ItemGroup>
@@ -99,6 +99,7 @@
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions">
       <Version>$(AspNetVersion)</Version>
     </PackageReference>
+    <ProjectReference Include="../tracecontrol_api/tracecontrol_api.csproj" />
   </ItemGroup>
 
   <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">

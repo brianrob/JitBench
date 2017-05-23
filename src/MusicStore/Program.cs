@@ -3,16 +3,31 @@ using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Reflection;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+
+using EventPipe;
 
 namespace MusicStore
 {
     public static class Program
     {
+        private static bool ContinueRunning = true;
+        private static object ConsoleLock = new object();
+        private static int NumThreads = 1;
+
         public static void Main(string[] args)
         {
+            if(args.Length > 0)
+            {
+                NumThreads = Convert.ToInt32(args[0]);
+            }
+
+            Console.WriteLine("Running with {0} worker threads.", NumThreads);
+            EnableTracing();
+
             var totalTime = Stopwatch.StartNew();
 
             var config = new ConfigurationBuilder()
@@ -56,16 +71,86 @@ namespace MusicStore
                 Console.WriteLine("Cold start time (server start + first request time): {0}ms", serverStartupTime + firstRequestTime);
                 Console.WriteLine();
                 Console.WriteLine();
-                
-                var minRequestTime = long.MaxValue;
-                var maxRequestTime = long.MinValue;
-                var averageRequestTime = 0.0;
+            }
 
-                Console.WriteLine("Running 100 requests");
-                for (var i = 1; i <= 100; i++)
+            DisableTracing();
+
+            // Spawn worker threads.
+            int numWorkers = 1;
+            Console.WriteLine("Spawning {0} workers.", numWorkers);
+            Task[] workerTasks = new Task[numWorkers];
+            for(int i=0; i<numWorkers; i++)
+            {
+                workerTasks[i] = new Task(new Action(RunRequests));
+                workerTasks[i].Start();
+            }
+
+            // Spawn tracing thread.
+            Task tracingControllerTask = new Task(new Action(TracingController));
+            tracingControllerTask.Start();
+
+            char c;
+            do
+            {
+                Console.WriteLine("Type 'q' to quit.");
+                c = Console.ReadKey().KeyChar;
+            }
+            while(c != 'q');
+
+            // Disable workers.
+            Console.WriteLine("Waiting for workers to stop.");
+            ContinueRunning = false;
+            Task.WaitAll(workerTasks);
+
+            Console.WriteLine("Workers stopped successfully.");
+
+            // Wait for tracing controller to finish.
+            Console.WriteLine("Waiting for tracing controller to finish.");
+            tracingControllerTask.Wait();
+        }
+
+        private static void EnableTracing()
+        {
+            Console.WriteLine("Start: Enable tracing.");
+            TraceControl.EnableDefault();
+            Console.WriteLine("Stop: Enable tracing.");
+        }
+
+        private static void DisableTracing()
+        {
+            Console.WriteLine("Start: Disable tracing.");
+            TraceControl.Disable();
+            Console.WriteLine("Stop: Disable tracing.");
+        }
+
+        private static void TracingController()
+        {
+            while(ContinueRunning)
+            {
+                // Enable tracing.
+                EnableTracing();
+
+                // Wait for 5 seconds.
+                System.Threading.Thread.Sleep(5000);
+
+                // Disable Tracing.
+                DisableTracing();
+            }
+        }
+
+        private static void RunRequests()
+        {
+            var minRequestTime = long.MaxValue;
+            var maxRequestTime = long.MinValue;
+            var averageRequestTime = 0.0;
+            var currentRequestIndex = 1;
+            Stopwatch requestTime = new Stopwatch();
+            using (var client = new HttpClient())
+            {
+                while(ContinueRunning)
                 {
                     requestTime.Restart();
-                    response = client.GetAsync("http://localhost:5000").Result;
+                    var response = client.GetAsync("http://localhost:5000").Result;
                     requestTime.Stop();
 
                     var requestTimeElapsed = requestTime.ElapsedMilliseconds;
@@ -80,33 +165,19 @@ namespace MusicStore
                     }
 
                     // Rolling average of request times
-                    averageRequestTime = (averageRequestTime * ((i - 1.0) / i)) + (requestTimeElapsed * (1.0 / i));
+                    averageRequestTime = (averageRequestTime * ((currentRequestIndex - 1.0) / currentRequestIndex)) + (requestTimeElapsed * (1.0 / currentRequestIndex));
+                    currentRequestIndex++;
+
+                    if(currentRequestIndex % 1000 == 0)
+                    {
+                        lock(ConsoleLock)
+                        {
+                            Console.WriteLine("Steadystate min response time: {0}ms", minRequestTime);
+                            Console.WriteLine("Steadystate max response time: {0}ms", maxRequestTime);
+                            Console.WriteLine("Steadystate average response time: {0}ms", (int)averageRequestTime);
+                        }
+                    }
                 }
-
-                Console.WriteLine("Steadystate min response time: {0}ms", minRequestTime);
-                Console.WriteLine("Steadystate max response time: {0}ms", maxRequestTime);
-                Console.WriteLine("Steadystate average response time: {0}ms", (int)averageRequestTime);
-            }
-
-            Console.WriteLine();
-
-            VerifyLibraryLocation();
-        }
-
-        private static void VerifyLibraryLocation()
-        {
-            var hosting = typeof(WebHostBuilder).GetTypeInfo().Assembly.Location;
-            var musicStore = typeof(Program).GetTypeInfo().Assembly.Location;
-
-            if (Path.GetDirectoryName(hosting) == Path.GetDirectoryName(musicStore))
-            {
-                Console.WriteLine("ASP.NET loaded from bin. This is a bug if you wanted crossgen");
-                Console.WriteLine("ASP.NET loaded from bin. This is a bug if you wanted crossgen");
-                Console.WriteLine("ASP.NET loaded from bin. This is a bug if you wanted crossgen");
-            }
-            else
-            {
-                Console.WriteLine("ASP.NET loaded from store");
             }
         }
     }
