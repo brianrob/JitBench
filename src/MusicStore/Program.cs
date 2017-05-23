@@ -16,7 +16,7 @@ namespace MusicStore
     {
         private static bool ContinueRunning = true;
         private static object ConsoleLock = new object();
-        private static int NumThreads = 1;
+        private static int NumThreads = 6;
 
         public static void Main(string[] args)
         {
@@ -125,8 +125,11 @@ namespace MusicStore
 
         private static void TracingController()
         {
+            int iteration = 1;
             while(ContinueRunning)
             {
+                Console.WriteLine("\nIteration: {0}", iteration);
+
                 // Enable tracing.
                 EnableTracing();
 
@@ -135,6 +138,8 @@ namespace MusicStore
 
                 // Disable Tracing.
                 DisableTracing();
+
+                iteration++;
             }
         }
 
@@ -172,9 +177,9 @@ namespace MusicStore
                     {
                         lock(ConsoleLock)
                         {
-                            Console.WriteLine("Steadystate min response time: {0}ms", minRequestTime);
-                            Console.WriteLine("Steadystate max response time: {0}ms", maxRequestTime);
-                            Console.WriteLine("Steadystate average response time: {0}ms", (int)averageRequestTime);
+                            Console.WriteLine("\tSteadystate min response time: {0}ms", minRequestTime);
+                            Console.WriteLine("\tSteadystate max response time: {0}ms", maxRequestTime);
+                            Console.WriteLine("\tSteadystate average response time: {0}ms", (int)averageRequestTime);
                         }
                     }
                 }
