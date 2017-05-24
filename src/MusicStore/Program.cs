@@ -133,8 +133,18 @@ namespace MusicStore
                 // Enable tracing.
                 EnableTracing();
 
-                // Wait for 5 seconds.
-                System.Threading.Thread.Sleep(5000);
+                if(iteration % 50 == 0)
+                {
+                    // Wait for 2 minutes.
+                    Console.WriteLine("\tTracing for 2 minutes.");
+                    System.Threading.Thread.Sleep(120000);
+                }
+                else
+                {
+                    // Wait for 5 seconds.
+                    Console.WriteLine("\tTracing for 5 seconds.");
+                    System.Threading.Thread.Sleep(5000);
+                }
 
                 // Disable Tracing.
                 DisableTracing();
